@@ -239,143 +239,25 @@ CLASS_DESCRIPTIONS = {
 }
 
 
-# =============================================================================
-# MODEL ARCHITECTURE
-# =============================================================================
-
-def build_model():
-    """
-    Rebuild the exact model architecture from training.
-    This must match the architecture used to create the weights.
-    """
-    import tensorflow as tf
-    from tensorflow.keras import layers, Model, regularizers
-    
-    # Config (must match training)
-    weight_decay = 1e-4
-    dropout_rate = 0.4
-    num_classes = 5
-    image_size = (224, 224)
-    
-    # ConvBlock function
-    def conv_block(x, filters, kernel_size=3, strides=1, use_residual=False, training=False):
-        shortcut = x
-        
-        x = layers.Conv2D(
-            filters, kernel_size, strides=strides, padding='same',
-            kernel_regularizer=regularizers.l2(weight_decay),
-            kernel_initializer='he_normal'
-        )(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.ReLU()(x)
-        
-        x = layers.Conv2D(
-            filters, kernel_size, padding='same',
-            kernel_regularizer=regularizers.l2(weight_decay),
-            kernel_initializer='he_normal'
-        )(x)
-        x = layers.BatchNormalization()(x)
-        
-        if use_residual:
-            shortcut = layers.Conv2D(filters, 1, strides=strides, padding='same')(shortcut)
-            shortcut = layers.BatchNormalization()(shortcut)
-            x = layers.Add()([x, shortcut])
-        
-        x = layers.ReLU()(x)
-        return x
-    
-    # SE Block function
-    def se_block(x, filters, ratio=16):
-        squeeze = layers.GlobalAveragePooling2D()(x)
-        excite = layers.Dense(filters // ratio, activation='relu')(squeeze)
-        excite = layers.Dense(filters, activation='sigmoid')(excite)
-        excite = layers.Reshape((1, 1, filters))(excite)
-        return layers.Multiply()([x, excite])
-    
-    # Build model
-    inputs = layers.Input(shape=(*image_size, 3))
-    
-    # Normalization
-    x = layers.Rescaling(1./255)(inputs)
-    
-    # Note: Data augmentation is NOT included in inference
-    # (it was only applied during training)
-    
-    # Stem
-    x = layers.Conv2D(64, 7, strides=2, padding='same', kernel_initializer='he_normal')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
-    x = layers.MaxPooling2D(3, strides=2, padding='same')(x)
-    
-    # Stage 1 with SE attention
-    x = conv_block(x, 64, use_residual=True)
-    x = conv_block(x, 64, use_residual=True)
-    x = se_block(x, 64)
-    x = layers.Dropout(0.2)(x)
-    
-    # Stage 2 with SE attention
-    x = conv_block(x, 128, strides=2, use_residual=True)
-    x = conv_block(x, 128, use_residual=True)
-    x = conv_block(x, 128, use_residual=True)
-    x = se_block(x, 128)
-    x = layers.Dropout(0.2)(x)
-    
-    # Stage 3 with SE attention
-    x = conv_block(x, 256, strides=2, use_residual=True)
-    x = conv_block(x, 256, use_residual=True)
-    x = conv_block(x, 256, use_residual=True)
-    x = conv_block(x, 256, use_residual=True)
-    x = se_block(x, 256)
-    x = layers.Dropout(0.3)(x)
-    
-    # Stage 4 with SE attention
-    x = conv_block(x, 512, strides=2, use_residual=True)
-    x = conv_block(x, 512, use_residual=True)
-    x = conv_block(x, 512, use_residual=True)
-    x = se_block(x, 512)
-    x = layers.Dropout(0.3)(x)
-    
-    # Multi-scale feature aggregation
-    gap = layers.GlobalAveragePooling2D()(x)
-    gmp = layers.GlobalMaxPooling2D()(x)
-    x = layers.Concatenate()([gap, gmp])
-    
-    # Classifier
-    x = layers.Dense(512, kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
-    x = layers.Dropout(dropout_rate)(x)
-    x = layers.Dense(256, kernel_regularizer=regularizers.l2(weight_decay))(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.ReLU()(x)
-    x = layers.Dropout(dropout_rate)(x)
-    outputs = layers.Dense(num_classes, activation='softmax')(x)
-    
-    return Model(inputs, outputs, name='LC25000_SENet_Custom')
-
-
 @st.cache_resource
 def load_model():
-    """Download weights from Hugging Face and load model."""
+    """Download full model from Hugging Face."""
     try:
         import tensorflow as tf
         from huggingface_hub import hf_hub_download
         
         HF_REPO_ID = "jeremysean/histolab"  
-        HF_FILENAME = "lc25000_weights.weights.h5" 
-                
-        # Download weights from Hugging Face
-        weights_path = hf_hub_download(
+        HF_FILENAME = "lc25000_scratch_final.keras" 
+        
+        # Download model from Hugging Face
+        model_path = hf_hub_download(
             repo_id=HF_REPO_ID,
             filename=HF_FILENAME,
             token=os.environ["HF_TOKEN"]
         )
         
-        # Build model architecture
-        model = build_model()
-        
-        # Load weights
-        model.load_weights(weights_path)
+        # Load full model
+        model = tf.keras.models.load_model(model_path)
         
         return model
         
