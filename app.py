@@ -5,6 +5,7 @@ Loads model weights from Hugging Face Hub
 
 import streamlit as st
 import numpy as np
+import os
 from PIL import Image
 
 # Page configuration
@@ -366,7 +367,8 @@ def load_model():
         # Download weights from Hugging Face
         weights_path = hf_hub_download(
             repo_id=HF_REPO_ID,
-            filename=HF_FILENAME
+            filename=HF_FILENAME,
+            token=os.environ["HF_TOKEN"]
         )
         
         # Build model architecture
