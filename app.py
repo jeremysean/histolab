@@ -249,7 +249,7 @@ def load_model():
         from huggingface_hub import hf_hub_download
         
         HF_REPO_ID = "jeremysean/histolab"  
-        HF_FILENAME = "lc25000_scratch_final.keras" 
+        HF_FILENAME = "lc25000_scratch_fixed.keras" 
         
         # Download model from Hugging Face
         model_path = hf_hub_download(
