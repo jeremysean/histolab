@@ -1,12 +1,11 @@
 """
 LC25000 Histopathology Image Classifier
-A professional web application for lung and colon cancer tissue classification
+Loads model weights from Hugging Face Hub
 """
 
 import streamlit as st
 import numpy as np
 from PIL import Image
-import io
 
 # Page configuration
 st.set_page_config(
@@ -20,54 +19,20 @@ st.set_page_config(
 st.markdown("""
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
-    /* Main container styling */
-    .main {
-        background: #f8fafc;
-    }
+    .main { background: #f8fafc; }
     
-    /* Header styling */
     .main-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0d4f6e 100%);
         padding: 2.5rem 2rem;
         border-radius: 16px;
         margin-bottom: 2rem;
         box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
-        position: relative;
-        overflow: hidden;
     }
     
-    .main-header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 300px;
-        height: 100%;
-        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-        border-radius: 0 16px 16px 0;
-    }
+    .header-icon { font-size: 2.5rem; color: #38bdf8; margin-bottom: 0.5rem; }
+    .main-header h1 { color: white; font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 700; }
+    .main-header p { color: #94a3b8; font-size: 1.05rem; margin: 0; }
     
-    .header-icon {
-        font-size: 2.5rem;
-        color: #38bdf8;
-        margin-bottom: 0.5rem;
-    }
-    
-    .main-header h1 {
-        color: white;
-        font-size: 2.2rem;
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-    }
-    
-    .main-header p {
-        color: #94a3b8;
-        font-size: 1.05rem;
-        margin: 0;
-    }
-    
-    /* Card styling */
     .info-card {
         background: white;
         padding: 1.5rem;
@@ -86,12 +51,8 @@ st.markdown("""
         font-weight: 600;
     }
     
-    .info-card-header i {
-        color: #3b82f6;
-        font-size: 1.1rem;
-    }
+    .info-card-header i { color: #3b82f6; font-size: 1.1rem; }
     
-    /* Result card */
     .result-card {
         background: white;
         padding: 2rem;
@@ -102,24 +63,10 @@ st.markdown("""
         border: 1px solid #e2e8f0;
     }
     
-    .prediction-label {
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #0f172a;
-        margin-bottom: 0.5rem;
-    }
+    .prediction-label { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; }
+    .confidence-text { font-size: 1.1rem; color: #64748b; }
+    .confidence-value { font-weight: 700; color: #0f172a; }
     
-    .confidence-text {
-        font-size: 1.1rem;
-        color: #64748b;
-    }
-    
-    .confidence-value {
-        font-weight: 700;
-        color: #0f172a;
-    }
-    
-    /* Severity badges */
     .badge {
         display: inline-flex;
         align-items: center;
@@ -131,17 +78,9 @@ st.markdown("""
         margin-top: 1rem;
     }
     
-    .badge-benign {
-        background: #dcfce7;
-        color: #166534;
-    }
+    .badge-benign { background: #dcfce7; color: #166534; }
+    .badge-malignant { background: #fee2e2; color: #991b1b; }
     
-    .badge-malignant {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    
-    /* Section headers */
     .section-header {
         display: flex;
         align-items: center;
@@ -152,38 +91,19 @@ st.markdown("""
         font-weight: 600;
     }
     
-    .section-header i {
-        color: #3b82f6;
-    }
+    .section-header i { color: #3b82f6; }
     
-    /* Tissue type cards */
     .tissue-card {
         background: white;
         padding: 1.25rem;
         border-radius: 12px;
         text-align: center;
         border: 1px solid #e2e8f0;
-        transition: all 0.2s ease;
     }
     
-    .tissue-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
+    .tissue-card-title { font-weight: 600; color: #0f172a; font-size: 0.9rem; margin-bottom: 4px; }
+    .tissue-card-desc { color: #64748b; font-size: 0.8rem; }
     
-    .tissue-card-title {
-        font-weight: 600;
-        color: #0f172a;
-        font-size: 0.9rem;
-        margin-bottom: 4px;
-    }
-    
-    .tissue-card-desc {
-        color: #64748b;
-        font-size: 0.8rem;
-    }
-    
-    /* Probability cards */
     .prob-card {
         background: white;
         padding: 1rem;
@@ -193,24 +113,10 @@ st.markdown("""
         min-height: 120px;
     }
     
-    .prob-card.active {
-        border: 2px solid #3b82f6;
-        background: #f8fafc;
-    }
+    .prob-card.active { border: 2px solid #3b82f6; background: #f8fafc; }
+    .prob-label { font-size: 0.75rem; color: #64748b; margin-bottom: 8px; line-height: 1.3; }
+    .prob-value { font-size: 1.4rem; font-weight: 700; }
     
-    .prob-label {
-        font-size: 0.75rem;
-        color: #64748b;
-        margin-bottom: 8px;
-        line-height: 1.3;
-    }
-    
-    .prob-value {
-        font-size: 1.4rem;
-        font-weight: 700;
-    }
-    
-    /* Sidebar styling */
     .sidebar-section {
         background: white;
         padding: 1.25rem;
@@ -229,12 +135,8 @@ st.markdown("""
         font-size: 0.95rem;
     }
     
-    .sidebar-title i {
-        color: #3b82f6;
-        font-size: 0.9rem;
-    }
+    .sidebar-title i { color: #3b82f6; font-size: 0.9rem; }
     
-    /* Class list in sidebar */
     .class-item {
         display: flex;
         align-items: center;
@@ -246,11 +148,7 @@ st.markdown("""
         border-left: 3px solid;
     }
     
-    .class-item-text {
-        font-size: 0.85rem;
-        color: #334155;
-        font-weight: 500;
-    }
+    .class-item-text { font-size: 0.85rem; color: #334155; font-weight: 500; }
     
     .class-item-badge {
         margin-left: auto;
@@ -260,43 +158,11 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Progress bar override */
     .stProgress > div > div {
         background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
         border-radius: 10px;
     }
     
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 8px;
-        font-weight: 600;
-        width: 100%;
-        transition: all 0.2s;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    }
-    
-    /* Footer */
-    .footer {
-        text-align: center;
-        padding: 2rem;
-        color: #64748b;
-        font-size: 0.85rem;
-    }
-    
-    .footer-icon {
-        color: #3b82f6;
-        margin: 0 4px;
-    }
-    
-    /* Disclaimer box */
     .disclaimer-box {
         background: #fef3c7;
         border: 1px solid #f59e0b;
@@ -306,49 +172,16 @@ st.markdown("""
         color: #92400e;
     }
     
-    .disclaimer-box i {
-        color: #f59e0b;
-        margin-right: 6px;
-    }
+    .disclaimer-box i { color: #f59e0b; margin-right: 6px; }
     
-    /* Stats grid */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-    }
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .stat-item { background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; }
+    .stat-value { font-weight: 700; color: #0f172a; font-size: 1.1rem; }
+    .stat-label { color: #64748b; font-size: 0.75rem; }
     
-    .stat-item {
-        background: #f8fafc;
-        padding: 10px;
-        border-radius: 8px;
-        text-align: center;
-    }
+    .footer { text-align: center; padding: 2rem; color: #64748b; font-size: 0.85rem; }
+    .footer-icon { color: #3b82f6; margin: 0 4px; }
     
-    .stat-value {
-        font-weight: 700;
-        color: #0f172a;
-        font-size: 1.1rem;
-    }
-    
-    .stat-label {
-        color: #64748b;
-        font-size: 0.75rem;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Image container */
-    .image-container {
-        background: white;
-        padding: 1rem;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-    }
-    
-    /* Empty state */
     .empty-state {
         text-align: center;
         padding: 3rem 2rem;
@@ -358,28 +191,16 @@ st.markdown("""
         margin: 2rem 0;
     }
     
-    .empty-state-icon {
-        font-size: 3rem;
-        color: #cbd5e1;
-        margin-bottom: 1rem;
-    }
+    .empty-state-icon { font-size: 3rem; color: #cbd5e1; margin-bottom: 1rem; }
+    .empty-state-title { font-size: 1.25rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
+    .empty-state-text { color: #64748b; font-size: 0.95rem; }
     
-    .empty-state-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: #0f172a;
-        margin-bottom: 0.5rem;
-    }
-    
-    .empty-state-text {
-        color: #64748b;
-        font-size: 0.95rem;
-    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 
-# Class definitions
 CLASS_NAMES = [
     "Colon Adenocarcinoma",
     "Colon Benign Tissue", 
@@ -417,40 +238,152 @@ CLASS_DESCRIPTIONS = {
 }
 
 
+# =============================================================================
+# MODEL ARCHITECTURE
+# =============================================================================
+
+def build_model():
+    """
+    Rebuild the exact model architecture from training.
+    This must match the architecture used to create the weights.
+    """
+    import tensorflow as tf
+    from tensorflow.keras import layers, Model, regularizers
+    
+    # Config (must match training)
+    weight_decay = 1e-4
+    dropout_rate = 0.4
+    num_classes = 5
+    image_size = (224, 224)
+    
+    # ConvBlock function
+    def conv_block(x, filters, kernel_size=3, strides=1, use_residual=False, training=False):
+        shortcut = x
+        
+        x = layers.Conv2D(
+            filters, kernel_size, strides=strides, padding='same',
+            kernel_regularizer=regularizers.l2(weight_decay),
+            kernel_initializer='he_normal'
+        )(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.ReLU()(x)
+        
+        x = layers.Conv2D(
+            filters, kernel_size, padding='same',
+            kernel_regularizer=regularizers.l2(weight_decay),
+            kernel_initializer='he_normal'
+        )(x)
+        x = layers.BatchNormalization()(x)
+        
+        if use_residual:
+            shortcut = layers.Conv2D(filters, 1, strides=strides, padding='same')(shortcut)
+            shortcut = layers.BatchNormalization()(shortcut)
+            x = layers.Add()([x, shortcut])
+        
+        x = layers.ReLU()(x)
+        return x
+    
+    # SE Block function
+    def se_block(x, filters, ratio=16):
+        squeeze = layers.GlobalAveragePooling2D()(x)
+        excite = layers.Dense(filters // ratio, activation='relu')(squeeze)
+        excite = layers.Dense(filters, activation='sigmoid')(excite)
+        excite = layers.Reshape((1, 1, filters))(excite)
+        return layers.Multiply()([x, excite])
+    
+    # Build model
+    inputs = layers.Input(shape=(*image_size, 3))
+    
+    # Normalization
+    x = layers.Rescaling(1./255)(inputs)
+    
+    # Note: Data augmentation is NOT included in inference
+    # (it was only applied during training)
+    
+    # Stem
+    x = layers.Conv2D(64, 7, strides=2, padding='same', kernel_initializer='he_normal')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.MaxPooling2D(3, strides=2, padding='same')(x)
+    
+    # Stage 1 with SE attention
+    x = conv_block(x, 64, use_residual=True)
+    x = conv_block(x, 64, use_residual=True)
+    x = se_block(x, 64)
+    x = layers.Dropout(0.2)(x)
+    
+    # Stage 2 with SE attention
+    x = conv_block(x, 128, strides=2, use_residual=True)
+    x = conv_block(x, 128, use_residual=True)
+    x = conv_block(x, 128, use_residual=True)
+    x = se_block(x, 128)
+    x = layers.Dropout(0.2)(x)
+    
+    # Stage 3 with SE attention
+    x = conv_block(x, 256, strides=2, use_residual=True)
+    x = conv_block(x, 256, use_residual=True)
+    x = conv_block(x, 256, use_residual=True)
+    x = conv_block(x, 256, use_residual=True)
+    x = se_block(x, 256)
+    x = layers.Dropout(0.3)(x)
+    
+    # Stage 4 with SE attention
+    x = conv_block(x, 512, strides=2, use_residual=True)
+    x = conv_block(x, 512, use_residual=True)
+    x = conv_block(x, 512, use_residual=True)
+    x = se_block(x, 512)
+    x = layers.Dropout(0.3)(x)
+    
+    # Multi-scale feature aggregation
+    gap = layers.GlobalAveragePooling2D()(x)
+    gmp = layers.GlobalMaxPooling2D()(x)
+    x = layers.Concatenate()([gap, gmp])
+    
+    # Classifier
+    x = layers.Dense(512, kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Dropout(dropout_rate)(x)
+    x = layers.Dense(256, kernel_regularizer=regularizers.l2(weight_decay))(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+    x = layers.Dropout(dropout_rate)(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+    
+    return Model(inputs, outputs, name='LC25000_SENet_Custom')
+
+
 @st.cache_resource
 def load_model():
-    """Build model architecture and load weights"""
+    """Download weights from Hugging Face and load model."""
     try:
         import tensorflow as tf
-        from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Rescaling, InputLayer, Dropout
-        from tensorflow.keras.applications import MobileNetV3Small
+        from huggingface_hub import hf_hub_download
         
-        base = MobileNetV3Small(
-            include_top=False,
-            weights='imagenet',
-            input_shape=(224, 224, 3),
+        HF_REPO_ID = "jeremysean/histolab"  
+        HF_FILENAME = "lc25000_weights.weights.h5" 
+                
+        # Download weights from Hugging Face
+        weights_path = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=HF_FILENAME
         )
-        base.trainable = True
         
-        model = tf.keras.models.Sequential([
-            InputLayer(shape=(224, 224, 3)),
-            Rescaling(scale=1/127.5, offset=-1),
-            base,
-            GlobalAveragePooling2D(),
-            Dropout(0.2),
-            Dense(256, activation='relu'),
-            Dense(5, activation="softmax"),
-        ])
+        # Build model architecture
+        model = build_model()
         
-        model.load_weights('lc2500_weights.weights.h5')
+        # Load weights
+        model.load_weights(weights_path)
+        
         return model
+        
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         return None
 
 
 def preprocess_image(image, target_size=(224, 224)):
-    """Preprocess image for model prediction"""
+    """Preprocess image for model prediction."""
     image = image.resize(target_size)
     img_array = np.array(image)
     if len(img_array.shape) == 2:
@@ -463,7 +396,7 @@ def preprocess_image(image, target_size=(224, 224)):
 
 
 def predict(model, image):
-    """Make prediction on preprocessed image"""
+    """Make prediction on preprocessed image."""
     predictions = model.predict(image, verbose=0)
     predicted_class = np.argmax(predictions[0])
     confidence = predictions[0][predicted_class]
@@ -471,23 +404,22 @@ def predict(model, image):
 
 
 def render_header():
-    """Render the main header"""
     st.markdown("""
     <div class="main-header">
         <div class="header-icon"><i class="fa-solid fa-microscope"></i></div>
         <h1>LC25000 Histopathology Classifier</h1>
-        <p>AI-powered lung and colon cancer tissue classification from histopathological images</p>
+        <p>Custom CNN trained from scratch for lung and colon tissue classification</p>
     </div>
     """, unsafe_allow_html=True)
 
 
 def render_sidebar():
-    """Render the sidebar with information"""
     with st.sidebar:
         st.markdown("""
         <div style="text-align: center; padding: 1rem 0;">
             <i class="fa-solid fa-microscope" style="font-size: 2.5rem; color: #3b82f6;"></i>
             <h3 style="margin: 0.5rem 0 0 0; color: #0f172a;">LC25000 Classifier</h3>
+            <p style="color: #64748b; font-size: 0.8rem; margin: 0.25rem 0 0 0;">From-Scratch Model</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -495,40 +427,22 @@ def render_sidebar():
         
         st.markdown("""
         <div class="sidebar-section">
-            <div class="sidebar-title">
-                <i class="fa-solid fa-circle-info"></i>
-                About This Tool
-            </div>
+            <div class="sidebar-title"><i class="fa-solid fa-microchip"></i>Model Architecture</div>
             <p style="font-size: 0.85rem; color: #64748b; margin: 0;">
-                Deep learning-powered classification of histopathological images 
-                into five tissue types for lung and colon cancer detection.
+                Custom CNN with residual connections and squeeze-excitation attention blocks.
+                Trained from scratch on LC25000 dataset.
             </p>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="sidebar-section">
-            <div class="sidebar-title">
-                <i class="fa-solid fa-database"></i>
-                Dataset Information
-            </div>
+            <div class="sidebar-title"><i class="fa-solid fa-database"></i>Dataset Information</div>
             <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="stat-value">25K</div>
-                    <div class="stat-label">Images</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">224px</div>
-                    <div class="stat-label">Size</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">5</div>
-                    <div class="stat-label">Classes</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">JPEG</div>
-                    <div class="stat-label">Format</div>
-                </div>
+                <div class="stat-item"><div class="stat-value">25K</div><div class="stat-label">Images</div></div>
+                <div class="stat-item"><div class="stat-value">224px</div><div class="stat-label">Size</div></div>
+                <div class="stat-item"><div class="stat-value">5</div><div class="stat-label">Classes</div></div>
+                <div class="stat-item"><div class="stat-value">96%</div><div class="stat-label">Accuracy</div></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -560,36 +474,23 @@ def render_sidebar():
         <div style="text-align: center; color: #64748b; font-size: 0.8rem;">
             <p style="margin: 0;">Built with <i class="fa-solid fa-heart" style="color: #ef4444;"></i> using Streamlit</p>
             <p style="margin: 4px 0 0 0;"><i class="fa-brands fa-python" style="color: #3776ab;"></i> Powered by TensorFlow</p>
+            <p style="margin: 4px 0 0 0;"><i class="fa-solid fa-face-smile" style="color: #fbbf24;"></i> Model hosted on Hugging Face</p>
         </div>
         """, unsafe_allow_html=True)
 
 
 def render_upload_section():
-    """Render the image upload section"""
-    st.markdown("""
-    <div class="section-header">
-        <i class="fa-solid fa-cloud-arrow-up"></i>
-        Upload Histopathology Image
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div class="section-header"><i class="fa-solid fa-cloud-arrow-up"></i>Upload Histopathology Image</div>""", unsafe_allow_html=True)
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        uploaded_file = st.file_uploader(
-            "Choose an image",
-            type=['jpg', 'jpeg', 'png'],
-            help="Upload a histopathology image for classification",
-            label_visibility="collapsed"
-        )
+        uploaded_file = st.file_uploader("Choose an image", type=['jpg', 'jpeg', 'png'], label_visibility="collapsed")
     
     with col2:
         st.markdown("""
         <div class="info-card">
-            <div class="info-card-header">
-                <i class="fa-solid fa-file-image"></i>
-                Requirements
-            </div>
+            <div class="info-card-header"><i class="fa-solid fa-file-image"></i>Requirements</div>
             <ul style="margin: 0; padding-left: 1.2rem; color: #64748b; font-size: 0.85rem;">
                 <li>Format: JPEG or PNG</li>
                 <li>Recommended: 224×224 px</li>
@@ -602,7 +503,6 @@ def render_upload_section():
 
 
 def render_results(image, prediction, confidence, all_predictions):
-    """Render the prediction results"""
     class_info = CLASS_DESCRIPTIONS[prediction]
     
     col1, col2 = st.columns([1, 1])
@@ -636,17 +536,11 @@ def render_results(image, prediction, confidence, all_predictions):
             info = CLASS_DESCRIPTIONS[class_name]
             is_predicted = class_name == prediction
             card_class = "prob-card active" if is_predicted else "prob-card"
-            st.markdown(f"""
-            <div class="{card_class}">
-                <div class="prob-label">{class_name}</div>
-                <div class="prob-value" style="color: {info['color']};">{prob*100:.1f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="{card_class}"><div class="prob-label">{class_name}</div><div class="prob-value" style="color: {info['color']};">{prob*100:.1f}%</div></div>""", unsafe_allow_html=True)
     
     st.markdown("""<div class="section-header" style="margin-top: 2rem;"><i class="fa-solid fa-chart-simple"></i>Confidence Breakdown</div>""", unsafe_allow_html=True)
     
     for class_name, prob in sorted(zip(CLASS_NAMES, all_predictions), key=lambda x: x[1], reverse=True):
-        info = CLASS_DESCRIPTIONS[class_name]
         col1, col2 = st.columns([3, 1])
         with col1:
             st.progress(float(prob))
@@ -654,8 +548,7 @@ def render_results(image, prediction, confidence, all_predictions):
             st.markdown(f"<span style='font-size: 0.85rem;'><strong>{class_name}</strong>: {prob*100:.1f}%</span>", unsafe_allow_html=True)
 
 
-def render_sample_images():
-    """Render sample images section"""
+def render_tissue_info():
     st.markdown("""<div class="section-header"><i class="fa-solid fa-circle-info"></i>About the Tissue Types</div>""", unsafe_allow_html=True)
     
     tissue_cols = st.columns(5)
@@ -679,7 +572,6 @@ def render_sample_images():
 
 
 def main():
-    """Main application function"""
     render_header()
     render_sidebar()
     
@@ -688,12 +580,9 @@ def main():
     if model is None:
         st.markdown("""
         <div class="info-card" style="border-left: 4px solid #f59e0b;">
-            <div class="info-card-header">
-                <i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b;"></i>
-                Model Not Found
-            </div>
+            <div class="info-card-header"><i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b;"></i>Model Loading Failed</div>
             <p style="margin: 0; color: #64748b; font-size: 0.9rem;">
-                The weights file <code>lc2500_weights.weights.h5</code> was not found. Ensure it's in the same directory as this app.
+                Could not load model from Hugging Face. Check your internet connection and repo settings.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -701,11 +590,8 @@ def main():
     else:
         st.markdown("""
         <div class="info-card" style="border-left: 4px solid #22c55e;">
-            <div class="info-card-header">
-                <i class="fa-solid fa-circle-check" style="color: #22c55e;"></i>
-                Model Loaded Successfully
-            </div>
-            <p style="margin: 0; color: #64748b; font-size: 0.9rem;">Ready to classify histopathology images.</p>
+            <div class="info-card-header"><i class="fa-solid fa-circle-check" style="color: #22c55e;"></i>Model Loaded Successfully</div>
+            <p style="margin: 0; color: #64748b; font-size: 0.9rem;">Custom CNN loaded from Hugging Face. Ready for classification.</p>
         </div>
         """, unsafe_allow_html=True)
         model_loaded = True
@@ -723,18 +609,18 @@ def main():
                 render_results(image, prediction, confidence, all_predictions)
             else:
                 st.image(image, caption="Uploaded Image", use_container_width=True)
-                st.info("Model not available. Please load the model for predictions.")
+                st.info("Model not available. Please check Hugging Face connection.")
                 
         except Exception as e:
             st.error(f"Error processing image: {str(e)}")
     else:
-        render_sample_images()
+        render_tissue_info()
         
         st.markdown("""
         <div class="empty-state">
             <div class="empty-state-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
             <div class="empty-state-title">Upload an image to get started</div>
-            <div class="empty-state-text">Upload a histopathology image of lung or colon tissue to classify it using our AI model.</div>
+            <div class="empty-state-text">Upload a histopathology image of lung or colon tissue to classify it.</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -742,7 +628,7 @@ def main():
     st.markdown("""
     <div class="footer">
         <p style="margin: 0;"><strong>LC25000 Histopathology Classifier</strong></p>
-        <p style="margin: 4px 0;"><i class="fa-solid fa-database footer-icon"></i>Dataset: Lung and Colon Cancer Histopathological Images (LC25000)</p>
+        <p style="margin: 4px 0;"><i class="fa-solid fa-database footer-icon"></i>Dataset: Lung and Colon Cancer Histopathological Images</p>
         <p style="margin: 4px 0;"><i class="fa-solid fa-triangle-exclamation footer-icon" style="color: #f59e0b;"></i>For research and educational purposes only.</p>
     </div>
     """, unsafe_allow_html=True)
