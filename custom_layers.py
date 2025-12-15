@@ -12,7 +12,7 @@ class ConvBlock(layers.Layer):
         
         self.conv1 = layers.Conv2D(
             filters, kernel_size, strides=strides, padding='same',
-            kernel_regularizer=regularizers.l2(CONFIG['weight_decay']),
+            kernel_regularizer=regularizers.l2(1e-4),
             kernel_initializer='he_normal'
         )
         self.bn1 = layers.BatchNormalization()
@@ -20,7 +20,7 @@ class ConvBlock(layers.Layer):
         
         self.conv2 = layers.Conv2D(
             filters, kernel_size, padding='same',
-            kernel_regularizer=regularizers.l2(CONFIG['weight_decay']),
+            kernel_regularizer=regularizers.l2(1e-4),
             kernel_initializer='he_normal'
         )
         self.bn2 = layers.BatchNormalization()
