@@ -212,17 +212,27 @@ CLASS_DESCRIPTIONS = {
 
 @st.cache_resource
 def load_model():
-    """Load the Keras model with caching"""
-    try:
-        import tensorflow as tf
-        model = tf.keras.models.load_model('lc2500_model.keras')
-        return model
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return None
+    from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Rescaling, InputLayer, Dropout
+    from tensorflow.keras.applications import MobileNetV3Small
+    
+    base = MobileNetV3Small(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
+    base.trainable = True
+    
+    model = tf.keras.models.Sequential([
+        InputLayer(shape=(224, 224, 3)),
+        Rescaling(scale=1/127.5, offset=-1),
+        base,
+        GlobalAveragePooling2D(),
+        Dropout(0.2),
+        Dense(256, activation='relu'),
+        Dense(5, activation="softmax"),
+    ])
+    
+    model.load_weights('lc2500_weights.weights.h5')
+    return model
 
 
-def preprocess_image(image, target_size=(768, 768)):
+def preprocess_image(image, target_size=(224, 224)):
     """Preprocess image for model prediction"""
     # Resize image
     image = image.resize(target_size)
